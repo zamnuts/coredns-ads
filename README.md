@@ -46,3 +46,7 @@ gist markdown.
 ## TODO
  - V2 repository API manifest
  - Multi-version/multi-platform matrix builds
+ - Support for BuildKit for amd64/arm64
+ - Support command line arguments
+ - Potentially migrate build script to go
+ - Potentially add support for pushing to repositories

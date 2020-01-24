@@ -1,49 +1,68 @@
 #!/usr/bin/env bash
+#
+# Build coredns docker images, and optionally extract built binaries
+#
+
+# Initial Setup
+readonly DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+. "${DIR}/util.sh" --source-only
 
 # START: configure me
-COREDNS_VERSION=${COREDNS_VERSION-v1.6.6}
-ADS_VERSION=${ADS_VERSION-v0.2.0}
+readonly COREDNS_VERSION=${COREDNS_VERSION-${LATEST_COREDNS_VERSION}}
+readonly ADS_VERSION=${ADS_VERSION-${LATEST_ADS_VERSION}}
+# BUILD_TARGETS=${BUILD_TARGETS-${DEFAULT_BUILD_TARGETS[*]}}
 BUILD_TARGETS=( 'linux:amd64' 'linux:arm64' 'linux:arm:7' )
-COMPRESS=${COMPRESS-false} # Might not work for arm7 
-EXTRACT_BINARY=${EXTRACT_BINARY-true}
+
+readonly COMPRESS=${COMPRESS-false} # Might not work for ARM7 
+readonly EXTRACT_BINARY=${EXTRACT_BINARY-true}
+readonly BUILD_DIR=${BUILD_DIR-"${DIR}/build"}
+
+# TODO(platten): add latest tag functionality after manifests are built
+# readonly ADD_LATEST_TAG=${ADD_LATEST_TAG-$( is_latest )}
+
 # END: configure me
-
 set -e
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-BUILD_DIR="${DIR}/build"
 
+# Print info
+info
+
+# Create build sub-directory if EXTRACT_BINARY is true and does not exist
 if [ "${EXTRACT_BINARY}" = true ]; then
   [ -d "${BUILD_DIR}" ] || mkdir "${BUILD_DIR}"
 fi
 
 for target in "${BUILD_TARGETS[@]}"; do
-  targetOs=$(printf '%s' "${target}" | cut -f1 -d':')
-  targetArch=$(printf '%s' "${target}" | cut -f2 -d':')
-  targetArmVersion=$(printf '%s' "${target}" | cut -f3 -d':')
+  target_os=$(printf '%s' "${target}" | cut -f1 -d':')
+  target_arch=$(printf '%s' "${target}" | cut -f2 -d':')
+  target_arm_version=$(printf '%s' "${target}" | cut -f3 -d':')
+  image_name="coredns-ads:${COREDNS_VERSION}-${target_arch}"
 
-  imageName="coredns-ads:${COREDNS_VERSION}-${targetArch}"
-  echo "Building Image: ${imageName}"
+  echo "Building Image: ${image_name}"
   docker build \
-    -t "${imageName}" \
+    -t "${image_name}" \
     --build-arg "COREDNS_VERSION=${COREDNS_VERSION}" \
     --build-arg "ADS_VERSION=${ADS_VERSION}" \
-    --build-arg "GOOS=${targetOs}" \
-    --build-arg "GOARCH=${targetArch}" \
-    --build-arg "GOARM=${targetArmVersion}" \
+    --build-arg "GOOS=${target_os}" \
+    --build-arg "GOARCH=${target_arch}" \
+    --build-arg "GOARM=${target_arm_version}" \
     --build-arg "COMPRESS=${COMPRESS}" \
-    "$DIR"
+    "${DIR}"
 
-  if [ "${EXTRACT_BINARY}" = true ]; then
-    binaryName="coredns-${COREDNS_VERSION}-${targetArch}"
-    containerId=$(docker create "${imageName}")
-    docker cp "${containerId}:/coredns" "${DIR}/build/${binaryName}"
-    docker rm -v "${containerId}"
+  if [ "${EXTRACT_BINARY}" = "true" ]; then
+    binary_name="coredns-${COREDNS_VERSION}-${target_arch}"
+    target_path="${DIR}/build/${binary_name}"
+
+    echo "Extracting coredns binary for ${target_arch} to ${target_path}"
+    container_id=$(docker create "${image_name}")
+    docker cp "${container_id}:/coredns" "${target_path}"
+    docker rm -v "${container_id}"
   fi
 done
 
-docker rmi "$(docker images -q -f 'dangling=true' -f 'label=autodelete=true')"
+echo "Cleaning up dangling and intermediate build containers"
+docker rmi $(docker images -q -f 'dangling=true' -f 'label=autodelete=true')
 
-# TODO add manifests for pushing
+# TODO(zamnuts): Add manifests for pushing
 #docker manifest create coredns-ads:$COREDNS_VERSION \
 #  coredns-ads:$COREDNS_VERSION-amd64 \
 #  coredns-ads:$COREDNS_VERSION-arm64 \
