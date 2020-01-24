@@ -4,39 +4,61 @@ LABEL autodelete=true
 
 ARG COREDNS_VERSION=v1.6.6
 ARG ADS_VERSION=v0.2.0
+ARG COMPRESS=true
 
 ENV \
-  COREDNS_INSTALL_PATH=$GOPATH/src/github.com/coredns/coredns \
+  COREDNS_INSTALL_PATH=${GOPATH}/src/github.com/coredns/coredns \
   ADS_INSTALL_PATH=$GOPATH/src/github.com/c-mueller/ads \
   GO111MODULE=on
 
 # split into 2 RUNs for cross-platform compilation layer reuse
 RUN \
   apt-get update &&  \
-  apt-get -y install ca-certificates && \
+  apt-get -y install ca-certificates apt-utils && \
+  apt-get -y install upx-ucl && \
   update-ca-certificates && \
   \
-  git clone https://github.com/coredns/coredns $COREDNS_INSTALL_PATH && \
-  git -C $COREDNS_INSTALL_PATH checkout tags/$COREDNS_VERSION && \
+  git clone https://github.com/coredns/coredns ${COREDNS_INSTALL_PATH} && \
+  git -C ${COREDNS_INSTALL_PATH} checkout tags/${COREDNS_VERSION} && \
   \
   git clone https://github.com/c-mueller/ads $ADS_INSTALL_PATH && \
-  git -C $ADS_INSTALL_PATH checkout tags/$ADS_VERSION && \
+  git -C ${ADS_INSTALL_PATH} checkout tags/${ADS_VERSION} && \
   \
-  sed -i 's|hosts:hosts|ads:github.com/c-mueller/ads\nhosts:hosts|g' $COREDNS_INSTALL_PATH/plugin.cfg && \
-  printf '\nreplace github.com/c-mueller/ads => %s\n' "$ADS_INSTALL_PATH" >> $COREDNS_INSTALL_PATH/go.mod && \
+  sed -i 's|hosts:hosts|ads:github.com/c-mueller/ads\nhosts:hosts|g' ${COREDNS_INSTALL_PATH}/plugin.cfg && \
+  printf '\nreplace github.com/c-mueller/ads => %s\n' "$ADS_INSTALL_PATH" >> ${COREDNS_INSTALL_PATH}/go.mod && \
   ( \
-    cd $COREDNS_INSTALL_PATH && \
-    go generate && \
-    go get -v -d ./... \
+  cd ${COREDNS_INSTALL_PATH} && \
+  go generate && \
+  go get -v -d ./... \
   )
 
 ARG GOOS
 ARG GOARCH
 ARG GOARM
 
+###
+### Build
+###
+
 RUN \
   cd $COREDNS_INSTALL_PATH && \
-  make BINARY="/coredns" SYSTEM="GOOS=$GOOS GOARCH=$GOARCH GOARM=$GOARM" CHECKS="" BUILDOPTS=""
+  make BINARY="/coredns" SYSTEM="GOOS=${GOOS} GOARCH=${GOARCH} GOARM=${GOARM}" CHECKS="" BUILDOPTS="" && \
+  echo "Built Complete for GOOS=${GOOS} GOARCH=${GOARCH} GOARM=${GOARM}"
+
+
+###
+### Attempt to minimize code
+###
+
+RUN  \
+  if [ "${COMPRESS}" = true ] ; then \
+  echo -n "Before Minimization: " && \
+  du -h "/coredns" | cut -f1 && \
+  upx --brute  "/coredns" && \
+  echo -n "After Minimization: " && \
+  du -h "/coredns" | cut -f1 ; \
+  fi
+
 
 ###
 

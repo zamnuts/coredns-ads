@@ -18,9 +18,7 @@ small (30-40MB range).
 Simply run `./build.sh`.
 Tags are automatic.
 Does not push.
-v2 repository API manifest support is TODO.
 Only a single CoreDNS and ads version can be built at once;
-multi-version/multiplatform matrix builds are TODO.
 
 The versions of CoreDNS and c-mueller/ads can be changed by updating
 `COREDNS_VERSION` and `ADS_VERSION` variables within `build.sh`.
@@ -33,6 +31,18 @@ asukakenji's
 [GOOS and GOARCH](https://gist.github.com/asukakenji/f15ba7e588ac42795f421b48b8aede63)
 gist markdown.
 
+
+### Parameters
+* If `EXTRACT_BINARY` is set to `true` the binaries will be extracted from the docker images saved in a new subdirectory called `build`.
+
+* If `COMPRESS` is set to `true` then the `coredns` binary will be attempted to be compressed with `upx`.
+    > NOTE: This has *not* been tested with ARM based binaries, and thus has been disabled by default.
+
+
 ## See Also
  - https://github.com/c-mueller/ads
  - https://github.com/coredns/coredns
+
+## TODO
+ - V2 repository API manifest
+ - Multi-version/multi-platform matrix builds
